@@ -23,7 +23,7 @@ probably don't need to call any of that directly.
 
 >>>>>>>> THIS IS A WORK IN PROGRESS <<<<<<<<
 
-TODO: multipart parsing is not complete
+TODO: multipart parsing is not complete - file uploads don't work
 TODO: general clean up
 TODO: switch to buffers from strings in some places
 TODO: moar tests
