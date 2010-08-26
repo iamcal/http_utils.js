@@ -1,0 +1,27 @@
+http_utils.js - An HTTP utility library for node.js
+===================================================
+
+If you're using HTTPServer in node.js, this library allows you to skip the tedious
+argument parsing for GET, POST and multipart POST params, instead delivering them
+ready-parsed into req.get and req.post objects.
+
+Simple usage example:
+
+    http_utils.createSimpleServer(function (req, res){
+
+        console.log("GET params: "+sys.inspect(req.get));
+        console.log("POST params: "+sys.inspect(req.post));
+
+    }).listen(1234);
+
+Internally the library implements sub-header parsing and multipart decoding. You 
+probably don't need to call any of that directly.
+
+
+
+>>>>>>>> THIS IS A WORK IN PROGRESS <<<<<<<<
+
+TODO: multipart parsing is not complete
+TODO: general clean up
+TODO: switch to buffers from strings in some places
+TODO: moar tests
