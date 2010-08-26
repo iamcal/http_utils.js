@@ -9,8 +9,10 @@ Simple usage example:
 
     http_utils.createSimpleServer(function (req, res){
 
-        console.log("GET params: "+sys.inspect(req.get));
-        console.log("POST params: "+sys.inspect(req.post));
+        res.writeHead(200, {'Content-Type': 'text/plain'});
+        res.write("GET params: "+sys.inspect(req.get)+"\n");
+        res.write("POST params: "+sys.inspect(req.post)+"\n");
+        res.end();
 
     }).listen(1234);
 

@@ -1,5 +1,6 @@
 var http = require('http');
 var url = require('url');
+var sys = require('sys');
 var querystring = require('querystring');
 
 var http_subparse = require('./http_subparse');
@@ -49,7 +50,7 @@ exports.parse_header = function(h, s){
 		return parse_header_extensions(s, out);
 	}
 
-	if (h == 'transfer-encoding'){
+	if (h == 'transfer-encoding' || h == 'content-disposition'){
 
 		var rx = new RegExp('^'+lws+token);
 		var m = rx.exec(s);
@@ -177,11 +178,19 @@ exports.createSimpleServer = function(callback){
 
 					// TODO: this should stream the request to the multipart pasrer, rather
 					// than buffer it all up first.
-					req.parts = http_utils.parse_multipart(content_type.boundary, req.body);
+					var parts = http_utils.parse_multipart(content_type.boundary, req.body);
 
-					//console.log('MULTIPART!');
-					//console.log(content_type.boundary);
-					//console.log(req.body);
+					for (var i=0; i<parts.length; i++){
+						if (parts[i].headers['content-disposition']){
+
+							var dis = http_utils.parse_header('content-disposition', parts[i].headers['content-disposition']);
+							if (dis.base == 'form-data' && dis.name){
+
+								req.post[dis.name] = parts[i].body.toString();
+							}
+						}
+					}
+
 				}
 
 				callback(req, res);
