@@ -1,0 +1,32 @@
+<!--
+	Set the hostname to the server you're tetsing...
+-->
+
+<table><tr><td>
+
+<form action="http://iamcal.com:8124/" method="post" target="myframe">
+	<input type="hidden" name="a" value="foo" />
+	<input type="hidden" name="b" value="bar" />
+	<input type="submit" value="POST" />
+</form>
+
+</td><td>
+
+<form action="http://iamcal.com:8124/" method="post" target="myframe" enctype="multipart/form-data">
+	<input type="hidden" name="a" value="foo" />
+	<input type="hidden" name="b" value="bar" />
+	<input type="submit" value="POST FILE" />
+</form>
+
+</td><td>
+
+<form action="http://iamcal.com:8124/" method="get" target="myframe">
+	<input type="hidden" name="a" value="foo" />
+	<input type="hidden" name="b" value="bar" />
+	<input type="submit" value="GET" />
+</form>
+
+</td></tr></table>
+
+<iframe name="myframe" id="myframe" style="width: 100%; height: 400px;"></iframe>
+
