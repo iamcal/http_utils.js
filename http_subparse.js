@@ -9,8 +9,8 @@ function HTTPSubParser(){
 	this.parser = make_parser(this);
 	this.running = false;
 	this.rb = new Buffer("HTTP/1.0 200 OK\r\n", 'ascii');
-	this.out = null;
-	this.decoer = null;
+	this.headers = null;
+	this.decoder = null;
 
 	return this;
 }
@@ -53,11 +53,7 @@ HTTPSubParser.prototype.streamData = function(b){
 
 HTTPSubParser.prototype.reset = function(){
 
-	this.out = {
-		headers: {},
-		body: null,
-	};
-
+	this.headers = {};
 	this.decoder = null;
 }
 
@@ -67,99 +63,31 @@ HTTPSubParser.prototype.setEncoding = function(encoding){
 }
 
 HTTPSubParser.prototype.addHeaderLine = function(k, v){
-	this.out.headers[k] = v;
+	this.headers[k] = v;
+}
+
+HTTPSubParser.prototype.headersComplete = function(){
+	this.emit('headers', this.headers);
 }
 
 HTTPSubParser.prototype.addData = function(b){
-	if (this.out.body){
-		var n = new Buffer(this.out.body.length + b.length);
-		this.out.body.copy(n, 0, 0);
-		b.copy(n, this.out.body.length, 0);
-		this.out.body = n;
-	}else{
-		this.out.body = b;
-	}
+	this.emit('data', b);
+}
+
+HTTPSubParser.prototype.allDone = function(){
+	this.emit('end');
 }
 
 
-
-
-
-exports.createParser = function(){
-
-	var parser = make_parser();
-	parser.running = false;
-	parser.rb = new Buffer("HTTP/1.0 200 OK\r\n", 'ascii');
-
-	parser.startStream = function(b){
-
-		if (parser.running) parser.end();
-		parser.running = true;
-		parser.reset();
-
-		parser.reinitialize('response');
-	        parser.execute(parser.rb, 0, parser.rb.length);
-		if (b) parser.streamData(b);
-	};
-
-	parser.streamData = function(b){
-
-		parser.execute(b, 0, b.length);
-	}
-
-	parser.endStream = function(b){
-
-		if (b) parser.streamData(b);
-
-		parser.finish();
-		parser.running = false;
-		return parser.out;
-	}
-
-	return parser;
-}
-
-
+//
+// this private function encapsulates the HTTPParser object
+//
 
 function make_parser(owner){
 
 	var parser = new HTTPParser('response');
 
 	parser.owner = owner;
-
-//	parser.reset = function(){
-//		parser.out = {
-//			headers: {},
-//			body: null,
-//		};
-//
-//		parser.decoder = null;
-//	}
-
-//	parser.reset();
-
-//	parser.setEncoding = function(encoding){
-//		var StringDecoder = require("string_decoder").StringDecoder; // lazy load
-//		parser.decoder = new StringDecoder(encoding);
-//	}
-
-//	parser.addHeaderLine = function(k, v){
-//		parser.out.headers[k] = v;
-//	}
-
-//	parser.addData = function(b){
-//		//console.log('parser.addData : '+b.length);
-//
-//		if (parser.out.body){
-///			var n = new Buffer(parser.out.body.length + b.length);
-//			parser.out.body.copy(n, 0, 0);
-//			b.copy(n, parser.out.body.length, 0);
-//			parser.out.body = n;
-//		}else{
-//			parser.out.body = b;
-//		}
-//	}
-
 
 	//
 	// hooks to the real parser
@@ -207,6 +135,7 @@ function make_parser(owner){
 		if (parser.field && (parser.value != undefined)) {
 			parser.owner.addHeaderLine(parser.field, parser.value);
 		}
+		parser.owner.headersComplete();
 
 		return false;
 	};
@@ -226,6 +155,7 @@ function make_parser(owner){
 
 	parser.onMessageComplete = function () {
 		//console.log('parser.onMessageComplete');
+		parser.owner.allDone();
 	};
 
 	return parser;

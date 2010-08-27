@@ -124,6 +124,7 @@ exports.createSimpleServer = function(callback){
 			if (content_type.fulltype == 'application/x-www-form-urlencoded'){
 
 				wait_for_body = 'url';
+				req.body = '';
 			}
 
 			if (content_type.fulltype == 'multipart/form-data'){
@@ -228,7 +229,10 @@ function multipart_stream_parser(boundary){
 		if (parser.state == 1 && parser.buffer){
 
 			while (parser.processBuffer()){
+				//console.log('parser.processBuffer returned true - repeating');
 			}
+
+			//console.log('parser.processBuffer returned false');
 		}
 
 
@@ -256,20 +260,28 @@ function multipart_stream_parser(boundary){
 	}
 
 	parser.fastForward = function(l){
+		//console.log('fast forward '+l+' bytes');
 		if (parser.buffer){
 			var current_l = parser.buffer.length;
 			if (l < current_l){
 				parser.buffer = parser.buffer.slice(l, current_l);
+				//console.log('buffer now '+parser.buffer.length+' bytes');
 			}else{
+				//console.log('buffer now empty');
 				parser.buffer = null;
 			}
+		}else{
+			//console.log('no buffer to move through');
 		}
 	}
 
 	// return true to continue!
 	parser.processBuffer = function(){
 
-		if (!parser.buffer) return false;
+		if (!parser.buffer){
+			//console.log('no buffer to process');
+			return false;
+		}
 
 		var s = parser.buffer.toString();
 
@@ -284,7 +296,6 @@ function multipart_stream_parser(boundary){
 		if (idx > -1){
 			//console.log('found next bounary at '+idx);
 			parser.subparser.endStream(parser.buffer.slice(0, idx));
-			parser.processPart(parser.subparser.out);
 			parser.fastForward(idx + find.length);
 			parser.subparser.startStream();
 			return true;
@@ -301,7 +312,6 @@ function multipart_stream_parser(boundary){
 		if (idx > -1){
 			//console.log('found final bounary at '+idx);
 			parser.subparser.endStream(parser.buffer.slice(0, idx));
-			parser.processPart(parser.subparser.out);
 			parser.fastForward(idx + find.length);
 			parser.state = 2;
 			return true;
@@ -322,6 +332,8 @@ function multipart_stream_parser(boundary){
 		var ok_feed_len = parser.buffer.length - find.length;
 		if (ok_feed_len > 0){
 
+			//console.log('feeding middle bytes: '+ok_feed_len);
+
 			parser.subparser.streamData(parser.buffer.slice(0, ok_feed_len));
 			parser.fastForward(ok_feed_len);
 		}
@@ -331,23 +343,54 @@ function multipart_stream_parser(boundary){
 
 
 	//
-	// this is where we figure out what we got (if anything) from
-	// the part we just finished processing.
+	// these callbacks are called as we parse the part
 	//
 
-	parser.processPart = function(part){
+	parser.start_part = function(){
+		parser.part_type = null;
+		parser.part_field = null;
+		parser.part_buffer = null;
+	}
 
-		if (part.headers['content-disposition']){
+	parser.start_part();
 
-			var dis = http_utils.parse_header('content-disposition', part.headers['content-disposition']);
+	parser.subparser.on('headers', function(headers){
+
+		parser.headers = headers;
+
+console.log(headers);
+		if (headers['content-disposition']){
+			var dis = http_utils.parse_header('content-disposition', headers['content-disposition']);
 
 			if (dis.base == 'form-data' && dis.name){
 
-				parser.post[dis.name] = part.body.toString();
+				parser.part_type = 'form';
+				parser.part_field = dis.name;
+				parser.part_buffer = '';
 			}
 		}
 
-	}
+	});
+
+	parser.subparser.on('data', function(b){
+
+		if (parser.part_type == 'form'){
+			parser.part_buffer += b.toString();
+		}
+
+	});
+
+	parser.subparser.on('end', function(){
+
+		if (parser.part_type == 'form'){
+
+			parser.post[parser.part_field] = parser.part_buffer;
+		}
+
+		parser.start_part();
+	});
+
+
 
 	return parser;
 }
