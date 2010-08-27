@@ -92,26 +92,6 @@ function parse_header_extensions(s, out){
 	}
 }
 
-exports.parse_multipart = function(bound, body){
-
-	// TODO: this should use buffers instead of strings
-
-	var raw_parts = body.split('--'+bound);
-
-	var parts = [];
-	for (var i=0; i<raw_parts.length; i++){
-		var p = raw_parts[i];
-		var l = p.length
-
-		if (p.substr(0, 2) == "\r\n" && p.substr(l-2, 2) == "\r\n"){
-
-			parts.push(http_subparse.execute(new Buffer(p.substr(2, l-4))));
-		}
-	}
-
-	return parts;
-}
-
 
 //
 // a simple subclass of http.createServer which doesn't fire the callback until
@@ -176,7 +156,6 @@ exports.createSimpleServer = function(callback){
 			req.on('end', function(){
 
 				if (wait_for_body == 'url'){
-					//console.log('parsing url encoded body args');
 					req.post = querystring.parse(req.body);
 				}
 
@@ -184,25 +163,6 @@ exports.createSimpleServer = function(callback){
 
 					req.post = req.parser.post;
 					req.files = req.parser.files;
-				}
-				
-				if (0){	
-					var parts = http_utils.parse_multipart(content_type.boundary, req.body);
-
-					for (var i=0; i<parts.length; i++){
-
-						console.log(parts[i].headers);
-
-						if (parts[i].headers['content-disposition']){
-
-							var dis = http_utils.parse_header('content-disposition', parts[i].headers['content-disposition']);
-							if (dis.base == 'form-data' && dis.name){
-								console.log(dis);
-
-								req.post[dis.name] = parts[i].body.toString();
-							}
-						}
-					}
 				}
 
 				callback(req, res);
@@ -221,7 +181,8 @@ function multipart_stream_parser(boundary){
 	// parser states:
 	//
 	// 0: beginning (not yet found first boundary)
-	// 2: within boundary, sub-parser active
+	// 1: within boundary, sub-parser active
+	// 2: passed final marker
 	//
 
 	var parser = {};
@@ -242,7 +203,7 @@ function multipart_stream_parser(boundary){
 
 		//
 		// we're before the first boundary. search for the start.
-		// if we find it, we'll roll down into the next stare
+		// if we find it, we'll roll down into the next state
 		//
 
 		if (parser.state == 0){
@@ -280,6 +241,7 @@ function multipart_stream_parser(boundary){
 	//
 	// append a buffer into our local buffer
 	//
+
 	parser.appendChunk = function(b){
 
 		if (parser.buffer){
@@ -311,8 +273,10 @@ function multipart_stream_parser(boundary){
 
 		var s = parser.buffer.toString();
 
+		//
 		// first, test for the end of the current
 		// chunk and the start of the next
+		//
 
 		var find = '\r\n--'+parser.boundary+"\r\n";
 		var idx = s.indexOf(find);
@@ -327,7 +291,10 @@ function multipart_stream_parser(boundary){
 		}
 
 
+		//
 		// next, test for the final chunk marker
+		//
+
 		find = '\r\n--'+parser.boundary+"--";
 		idx = s.indexOf(find);
 
@@ -340,13 +307,31 @@ function multipart_stream_parser(boundary){
 			return true;
 		}
 
+
+		//
 		// nope - no markers found. feed the whole
 		// buffer into the current parser
+		//
+
+	// ***************************************************************************
+	// TODO: There is a fairly serious bug here where
+	// if we're fed half of a delimiter then we will
+	// never detect it. when we don't find a delimiter,
+	// we need to only pass as much of the buffer as
+	// can't possibly contain the next one (buffer.len - delimiter.len)
+	// ***************************************************************************
+
 		parser.subparser.streamData(parser.buffer);
 		parser.buffer = null;
 
 		return false;
 	}
+
+
+	//
+	// this is where we figure out what we got (if anything) from
+	// the part we just finished processing.
+	//
 
 	parser.processPart = function(part){
 
