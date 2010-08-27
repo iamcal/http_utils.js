@@ -312,17 +312,19 @@ function multipart_stream_parser(boundary){
 		// nope - no markers found. feed the whole
 		// buffer into the current parser
 		//
+		// we will only feed up to buffer.len - delimiter.len
+		// bytes, else we might end up feeding half of a 
+		// delimiter and so never catch the boundary. don't
+		// worry - the data left in our buffer will get appended
+		// to and eventually fed into the parser.
+		//
 
-	// ***************************************************************************
-	// TODO: There is a fairly serious bug here where
-	// if we're fed half of a delimiter then we will
-	// never detect it. when we don't find a delimiter,
-	// we need to only pass as much of the buffer as
-	// can't possibly contain the next one (buffer.len - delimiter.len)
-	// ***************************************************************************
+		var ok_feed_len = parser.buffer.length - find.length;
+		if (ok_feed_len > 0){
 
-		parser.subparser.streamData(parser.buffer);
-		parser.buffer = null;
+			parser.subparser.streamData(parser.buffer.slice(0, ok_feed_len));
+			parser.fastForward(ok_feed_len);
+		}
 
 		return false;
 	}
