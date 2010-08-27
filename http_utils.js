@@ -1,7 +1,10 @@
 var http = require('http');
 var url = require('url');
 var sys = require('sys');
+var fs = require('fs');
 var querystring = require('querystring');
+
+global.http_temp_count = 0;
 
 var http_subparse = require('./http_subparse');
 
@@ -167,6 +170,14 @@ exports.createSimpleServer = function(callback){
 				}
 
 				callback(req, res);
+
+				if (wait_for_body == 'multi'){
+
+					// after the callback has returned we'll be deleting the files.
+					// TODO: this seems like it's too soon. we want to do it when
+					// 'req' objects goes out of scope. somehow
+					req.parser.cleanup();
+				}
 			});
 		}else{
 
@@ -275,6 +286,11 @@ function multipart_stream_parser(boundary){
 		}
 	}
 
+	parser.cleanup = function(){
+
+		// TODO: clean up files here
+	}
+
 	// return true to continue!
 	parser.processBuffer = function(){
 
@@ -348,8 +364,10 @@ function multipart_stream_parser(boundary){
 
 	parser.start_part = function(){
 		parser.part_type = null;
-		parser.part_field = null;
+		parser.part_disp = null;
 		parser.part_buffer = null;
+		parser.part_filename = null;
+		parser.part_fd = null
 	}
 
 	parser.start_part();
@@ -358,15 +376,23 @@ function multipart_stream_parser(boundary){
 
 		parser.headers = headers;
 
-console.log(headers);
 		if (headers['content-disposition']){
 			var dis = http_utils.parse_header('content-disposition', headers['content-disposition']);
 
 			if (dis.base == 'form-data' && dis.name){
 
-				parser.part_type = 'form';
-				parser.part_field = dis.name;
-				parser.part_buffer = '';
+				if (dis.filename){
+
+					parser.part_type = 'file';
+					parser.part_disp = dis;
+					parser.part_filename = parser.getTempFilename();
+					parser.part_fd = fs.openSync(parser.part_filename, 'w');
+
+				}else{
+					parser.part_type = 'form';
+					parser.part_disp = dis;
+					parser.part_buffer = '';
+				}
 			}
 		}
 
@@ -378,18 +404,36 @@ console.log(headers);
 			parser.part_buffer += b.toString();
 		}
 
+		if (parser.part_type == 'file'){
+			fs.writeSync(parser.part_fd, b, 0, b.length);
+		}
 	});
 
 	parser.subparser.on('end', function(){
 
 		if (parser.part_type == 'form'){
 
-			parser.post[parser.part_field] = parser.part_buffer;
+			parser.post[parser.part_disp.name] = parser.part_buffer;
+		}
+
+		if (parser.part_type == 'file'){
+
+			fs.closeSync(parser.part_fd);
+
+			parser.files[parser.part_disp.name] = {
+				'type'		: parser.headers['content-type'],
+				'orig_name'	: parser.part_disp.filename,
+				'temp_name'	: parser.part_filename,
+			};
 		}
 
 		parser.start_part();
 	});
 
+	parser.getTempFilename = function(){
+		global.http_temp_count++;
+		return '/tmp/node-'+global.http_temp_count;
+	}
 
 
 	return parser;
