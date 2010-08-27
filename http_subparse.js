@@ -20,12 +20,16 @@ function make_parser(){
 
 	var parser = new HTTPParser('response');
 
-	parser.out = {
-		headers: {},
-		body: null,
-	};
+	parser.reset = function(){
+		parser.out = {
+			headers: {},
+			body: null,
+		};
 
-	parser.decoder = null;
+		parser.decoder = null;
+	}
+
+	parser.reset();
 
 	parser.setEncoding = function(encoding){
 		var StringDecoder = require("string_decoder").StringDecoder; // lazy load
@@ -116,6 +120,40 @@ function make_parser(){
 	parser.onMessageComplete = function () {
 		//console.log('parser.onMessageComplete');
 	};
+
+	return parser;
+}
+
+exports.createParser = function(){
+
+	var parser = make_parser();
+	parser.running = false;
+	parser.rb = new Buffer("HTTP/1.0 200 OK\r\n", 'ascii');
+
+	parser.startStream = function(b){
+
+		if (parser.running) parser.end();
+		parser.running = true;
+		parser.reset();
+
+		parser.reinitialize('response');
+	        parser.execute(parser.rb, 0, parser.rb.length);
+		if (b) parser.streamData(b);
+	};
+
+	parser.streamData = function(b){
+
+		parser.execute(b, 0, b.length);
+	}
+
+	parser.endStream = function(b){
+
+		if (b) parser.streamData(b);
+
+		parser.finish();
+		parser.running = false;
+		return parser.out;
+	}
 
 	return parser;
 }
