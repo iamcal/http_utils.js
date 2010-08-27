@@ -190,7 +190,7 @@ function multipart_stream_parser(boundary){
 	parser.boundary = boundary;
 	parser.buffer = null;
 	parser.state = 0; // not in chunk
-	parser.subparser = http_subparse.createParser();
+	parser.subparser = new http_subparse.HTTPSubParser();
 
 	parser.post = {};
 	parser.files = {};
