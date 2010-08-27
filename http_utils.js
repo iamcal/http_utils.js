@@ -368,6 +368,7 @@ function multipart_stream_parser(boundary){
 		parser.part_buffer = null;
 		parser.part_filename = null;
 		parser.part_fd = null
+		parser.part_size = 0;
 	}
 
 	parser.start_part();
@@ -387,6 +388,7 @@ function multipart_stream_parser(boundary){
 					parser.part_disp = dis;
 					parser.part_filename = parser.getTempFilename();
 					parser.part_fd = fs.openSync(parser.part_filename, 'w');
+					parser.part_size = 0;
 
 				}else{
 					parser.part_type = 'form';
@@ -405,6 +407,7 @@ function multipart_stream_parser(boundary){
 		}
 
 		if (parser.part_type == 'file'){
+			parser.part_size += b.length;
 			fs.writeSync(parser.part_fd, b, 0, b.length);
 		}
 	});
@@ -422,6 +425,7 @@ function multipart_stream_parser(boundary){
 
 			parser.files[parser.part_disp.name] = {
 				'type'		: parser.headers['content-type'],
+				'size'		: parser.part_size,
 				'orig_name'	: parser.part_disp.filename,
 				'temp_name'	: parser.part_filename,
 			};
